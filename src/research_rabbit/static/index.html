@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Rabbit 🐰 - Local AI Web Researcher</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons for premium feel -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Markdown Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="logo-emoji">🐰</span>
+                <div class="logo-text">
+                    <h1>Research Rabbit</h1>
+                    <span class="logo-subtitle">Local Agentic Researcher</span>
+                </div>
+            </div>
+
+            <!-- Tabs / Navigation -->
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" data-tab="tab-search">
+                    <i data-lucide="search"></i> New Research
+                </button>
+                <button class="nav-btn" data-tab="tab-history">
+                    <i data-lucide="history"></i> History
+                </button>
+                <button class="nav-btn" data-tab="tab-settings">
+                    <i data-lucide="settings"></i> API Keys &amp; Settings
+                </button>
+            </nav>
+
+            <!-- Quick Stats or Info -->
+            <div class="sidebar-footer">
+                <div class="ollama-status">
+                    <div class="status-indicator online" id="ollama-indicator"></div>
+                    <span>Ollama Environment OK</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- New Research Tab -->
+            <section id="tab-search" class="tab-pane active">
+                <div class="pane-header">
+                    <h2>Start a New Deep-Dive</h2>
+                    <p class="pane-subtitle">Specify a topic, and Research Rabbit will autonomously search the web and synthesize answers.</p>
+                </div>
+
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input type="text" id="topic-input" placeholder="What would you like to research today? (e.g. Latest breakthroughs in fusion energy, History of LLMs...)" />
+                        <button id="start-btn" class="primary-btn">
+                            <span>Analyze</span> <i data-lucide="arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Status / Timeline Panel (Hidden by default, shown during run) -->
+                <div id="live-panel" class="card hidden">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <span class="pulse-icon"></span>
+                            <h3>Agent Reasoning Timeline</h3>
+                        </div>
+                        <div class="loop-counter">
+                            Iteration: <span id="loop-current">0</span> / <span id="loop-max">3</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline" id="timeline-container">
+                            <!-- Timeline steps will be dynamically added here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results / Markdown Output Panel -->
+                <div id="result-panel" class="card hidden">
+                    <div class="card-header border-bottom">
+                        <div class="card-title-group">
+                            <i data-lucide="file-text" class="text-primary"></i>
+                            <h3 id="result-topic-title">Research Summary</h3>
+                        </div>
+                        <div class="actions-group">
+                            <button id="download-md-btn" class="secondary-btn btn-sm">
+                                <i data-lucide="download"></i> Export Markdown
+                            </button>
+                            <button id="clear-result-btn" class="secondary-btn btn-sm text-danger border-danger">
+                                <i data-lucide="trash-2"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body markdown-body" id="markdown-output">
+                        <!-- Final summary in markdown will go here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- History Tab -->
+            <section id="tab-history" class="tab-pane">
+                <div class="pane-header">
+                    <h2>Past Research Artifacts</h2>
+                    <p class="pane-subtitle">Browse and review reports generated in previous sessions.</p>
+                </div>
+
+                <div class="history-grid" id="history-list">
+                    <!-- History cards will be added here -->
+                    <div class="no-data">
+                        <i data-lucide="inbox"></i>
+                        <p>No past research files found.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="tab-settings" class="tab-pane">
+                <div class="pane-header">
+                    <h2>Configuration &amp; API Keys</h2>
+                    <p class="pane-subtitle">Configure model parameters and API authentication keys. Settings are stored locally.</p>
+                </div>
+
+                <div class="settings-form card">
+                    <div class="card-body">
+                        <!-- Provider Selector -->
+                        <div class="form-group">
+                            <label for="settings-provider">LLM Provider</label>
+                            <select id="settings-provider" class="form-control">
+                                <option value="ollama">Ollama (Local LLM)</option>
+                                <option value="gemini">Google Gemini (Cloud)</option>
+                                <option value="openai">OpenAI (Cloud)</option>
+                            </select>
+                            <span class="form-hint">Choose Ollama to run completely locally, or cloud providers for fast and high-quality results.</span>
+                        </div>
+
+                        <!-- Local Model Input -->
+                        <div class="form-group" id="group-ollama-model">
+                            <label for="settings-local-llm">Ollama Model Name</label>
+                            <input type="text" id="settings-local-llm" class="form-control" placeholder="llama3.2" />
+                            <span class="form-hint">Make sure you have pulled this model (e.g. <code>ollama pull llama3.2</code>) before running.</span>
+                        </div>
+
+                        <!-- Cloud Model Input -->
+                        <div class="form-group hidden" id="group-custom-model">
+                            <label for="settings-model-name">Custom Model Name Override</label>
+                            <input type="text" id="settings-model-name" class="form-control" placeholder="" />
+                            <span class="form-hint">Leave blank to use defaults (<code>gemini-1.5-flash</code> for Gemini, <code>gpt-4o-mini</code> for OpenAI).</span>
+                        </div>
+
+                        <!-- API Keys Section -->
+                        <h4 class="settings-section-title">API Integration Credentials</h4>
+
+                        <div class="form-group">
+                            <label for="settings-tavily-key">Tavily Search API Key</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" id="settings-tavily-key" class="form-control" placeholder="tvly-..." />
+                                <button type="button" class="toggle-password-btn"><i data-lucide="eye"></i></button>
+                            </div>
+                            <span class="form-hint">Obtain a free search API key from <a href="https://tavily.com/" target="_blank">Tavily Search</a>.</span>
+                        </div>
+
+                        <div class="form-group hidden" id="group-gemini-key">
+                            <label for="settings-gemini-key">Gemini API Key</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" id="settings-gemini-key" class="form-control" placeholder="AIzaSy..." />
+                                <button type="button" class="toggle-password-btn"><i data-lucide="eye"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="form-group hidden" id="group-openai-key">
+                            <label for="settings-openai-key">OpenAI API Key</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" id="settings-openai-key" class="form-control" placeholder="sk-..." />
+                                <button type="button" class="toggle-password-btn"><i data-lucide="eye"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Loop Count -->
+                        <div class="form-group">
+                            <label for="settings-max-loops">Research Loops (Depth)</label>
+                            <input type="number" id="settings-max-loops" class="form-control" min="1" max="10" value="3" />
+                            <span class="form-hint">Number of search-reflection-summarize iterations to perform. More loops increase depth but take longer.</span>
+                        </div>
+
+                        <!-- Save Alert -->
+                        <div id="save-alert" class="alert success-alert hidden">
+                            <i data-lucide="check-circle"></i> Settings saved successfully!
+                        </div>
+
+                        <button id="save-settings-btn" class="primary-btn mt-4">
+                            <i data-lucide="save"></i> Save Settings
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal for viewing historical reports -->
+    <div id="report-modal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <i data-lucide="file-text" class="text-primary"></i>
+                    <h3 id="modal-report-title">Saved Report</h3>
+                </div>
+                <button class="close-modal-btn" id="close-modal-btn">&times;</button>
+            </div>
+            <div class="modal-body markdown-body" id="modal-report-content">
+                <!-- Loaded report HTML will go here -->
+            </div>
+            <div class="modal-footer">
+                <button id="modal-download-btn" class="primary-btn">
+                    <i data-lucide="download"></i> Export Markdown
+                </button>
+                <button id="modal-close-btn" class="secondary-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

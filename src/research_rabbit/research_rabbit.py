@@ -12,18 +12,47 @@ from research_rabbit.utils import deduplicate_and_format_sources, tavily_search,
 from research_rabbit.state import SummaryState, SummaryStateInput, SummaryStateOutput
 from research_rabbit.prompts import query_writer_instructions, summarizer_instructions, reflection_instructions
 
-# LLM
-llm = ChatOllama(model=Configuration.local_llm, temperature=0)
-llm_json_mode = ChatOllama(model=Configuration.local_llm, temperature=0, format="json")
+# Model Factory
+def get_llm(config: RunnableConfig, json_mode: bool = False):
+    configurable = Configuration.from_runnable_config(config)
+    provider = (configurable.llm_provider or "ollama").lower()
+    
+    import os
+    if configurable.openai_api_key:
+        os.environ["OPENAI_API_KEY"] = configurable.openai_api_key
+    if configurable.gemini_api_key:
+        os.environ["GEMINI_API_KEY"] = configurable.gemini_api_key
+    if configurable.tavily_api_key:
+        os.environ["TAVILY_API_KEY"] = configurable.tavily_api_key
+        
+    if provider == "gemini":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        model = configurable.model_name or "gemini-1.5-flash"
+        if json_mode:
+            return ChatGoogleGenerativeAI(model=model, temperature=0, response_mime_type="application/json")
+        return ChatGoogleGenerativeAI(model=model, temperature=0)
+    elif provider == "openai":
+        from langchain_openai import ChatOpenAI
+        model = configurable.model_name or "gpt-4o-mini"
+        if json_mode:
+            return ChatOpenAI(model=model, temperature=0, model_kwargs={"response_format": {"type": "json_object"}})
+        return ChatOpenAI(model=model, temperature=0)
+    else:  # ollama or default
+        from langchain_ollama import ChatOllama
+        model = configurable.model_name or configurable.local_llm or "llama3.2"
+        if json_mode:
+            return ChatOllama(model=model, temperature=0, format="json")
+        return ChatOllama(model=model, temperature=0)
 
 # Nodes   
-def generate_query(state: SummaryState):
+def generate_query(state: SummaryState, config: RunnableConfig):
     """ Generate a query for web search """
     
     # Format the prompt
     query_writer_instructions_formatted = query_writer_instructions.format(research_topic=state.research_topic)
 
-    # Generate a query
+    # Generate a query with dynamic LLM
+    llm_json_mode = get_llm(config, json_mode=True)
     result = llm_json_mode.invoke(
         [SystemMessage(content=query_writer_instructions_formatted),
         HumanMessage(content=f"Generate a query for web search:")]
@@ -32,9 +61,15 @@ def generate_query(state: SummaryState):
     
     return {"search_query": query['query']}
 
-def web_research(state: SummaryState):
+def web_research(state: SummaryState, config: RunnableConfig):
     """ Gather information from the web """
     
+    # Set Tavily API key from config if present
+    configurable = Configuration.from_runnable_config(config)
+    import os
+    if configurable.tavily_api_key:
+        os.environ["TAVILY_API_KEY"] = configurable.tavily_api_key
+
     # Search the web
     search_results = tavily_search(state.search_query, include_raw_content=True, max_results=1)
     
@@ -42,7 +77,7 @@ def web_research(state: SummaryState):
     search_str = deduplicate_and_format_sources(search_results, max_tokens_per_source=1000)
     return {"sources_gathered": [format_sources(search_results)], "research_loop_count": state.research_loop_count + 1, "web_research_results": [search_str]}
 
-def summarize_sources(state: SummaryState):
+def summarize_sources(state: SummaryState, config: RunnableConfig):
     """ Summarize the gathered sources """
     
     # Existing summary
@@ -64,7 +99,8 @@ def summarize_sources(state: SummaryState):
             f"That addresses the following topic: {state.research_topic}"
         )
 
-    # Run the LLM
+    # Run the dynamic LLM
+    llm = get_llm(config, json_mode=False)
     result = llm.invoke(
         [SystemMessage(content=summarizer_instructions),
         HumanMessage(content=human_message_content)]
@@ -73,10 +109,11 @@ def summarize_sources(state: SummaryState):
     running_summary = result.content
     return {"running_summary": running_summary}
 
-def reflect_on_summary(state: SummaryState):
+def reflect_on_summary(state: SummaryState, config: RunnableConfig):
     """ Reflect on the summary and generate a follow-up query """
 
-    # Generate a query
+    # Generate a query with dynamic LLM
+    llm_json_mode = get_llm(config, json_mode=True)
     result = llm_json_mode.invoke(
         [SystemMessage(content=reflection_instructions.format(research_topic=state.research_topic)),
         HumanMessage(content=f"Identify a knowledge gap and generate a follow-up web search query based on our existing knowledge: {state.running_summary}")]

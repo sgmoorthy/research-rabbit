@@ -11,6 +11,11 @@ class Configuration:
     """The configurable fields for the research assistant."""
     max_web_research_loops: int = 3
     local_llm: str = "llama3.2"
+    llm_provider: str = "ollama"  # "ollama", "openai", "gemini"
+    model_name: str = ""          # Optional custom model name
+    openai_api_key: str = ""
+    gemini_api_key: str = ""
+    tavily_api_key: str = ""
 
     @classmethod
     def from_runnable_config(
@@ -25,4 +30,5 @@ class Configuration:
             for f in fields(cls)
             if f.init
         }
-        return cls(**{k: v for k, v in values.items() if v})
+        # Filter out None/empty values to allow dataclass defaults
+        return cls(**{k: v for k, v in values.items() if v is not None and v != ""})
